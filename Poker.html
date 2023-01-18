@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html>
+	<body>
+		<div id="chipValue"></div>
+
+		<div>
+			<button type="button" style="margin-top: 20px;" onclick="addChip()">Add Chip</button>
+		</div>
+
+		<div id="player" style="margin-top: 20px;"></div>
+
+		<div>
+			<button type="button" style="margin-top: 20px;" onclick="addPlayer()">Add Player</button>
+		</div>
+
+		<button type="button" style="margin-top: 30px;" onclick="calculateChip()">Submit</button>
+
+		<script type="text/javascript">
+			let chipValueCount = 0;
+
+			function addChip() {
+				const newDiv = document.createElement('div');
+				const nextChipValue = ++chipValueCount;
+				const chipId = `chip${nextChipValue}`;
+
+				newDiv.setAttribute('id', chipId);
+				newDiv.setAttribute('style', 'display: flex; align-items: center;');
+
+				newDiv.innerHTML = `
+					<label>Chip value:</label>\n
+					<input type="text" id="value${nextChipValue}" name="value${nextChipValue}" style="margin-left: 10px;"><br><br>\n
+					<label style="margin-left: 20px;">Quantity:</label>\n
+					<input type="text" id="quantity${nextChipValue}" name="quantity${nextChipValue}" style="margin-left: 10px;"><br><br>\n
+					<button type="button" style="margin-left: 20px;" onclick="removeChip('${chipId}')">Remove</button>\n
+				`;
+
+				document.getElementById('chipValue').appendChild(newDiv);
+			}
+
+			function removeChip(chipId) {
+				document.getElementById(chipId)?.remove();
+			}
+
+			addChip();
+
+			let playerCount = 0;
+
+			function addPlayer() {
+				const newDiv = document.createElement('div');
+				const nextPlayer = ++playerCount;
+				const playerId = `player${nextPlayer}`;
+
+				newDiv.setAttribute('id', playerId);
+				newDiv.setAttribute('style', 'display: flex; align-items: center;');
+
+				newDiv.innerHTML = `
+					<label>Player name:</label>\n
+					<input type="text" id="name${nextPlayer}" name="name${nextPlayer}" style="margin-left: 10px;"><br><br>\n
+					<label style="margin-left: 20px;">Buy in:</label>\n
+					<input type="text" id="cashIn${nextPlayer}" name="cashIn${nextPlayer}" style="margin-left: 10px;"><br><br>\n
+					<button type="button" style="margin-left: 20px;" onclick="removePlayer('${playerId}')">Remove</button>\n
+				`;
+
+				document.getElementById('player').appendChild(newDiv); 
+			}
+
+			function removePlayer(playerId) {
+				document.getElementById(playerId)?.remove();
+			}
+
+			addPlayer();
+
+			function calculateChip() {
+				let result;
+
+				const chipQuantities = {};
+				let totalChipValue = 0;
+
+				for (let index = 0; index < chipValueCount; index++) {
+					const chipValue = +(document.getElementById(`value${index + 1}`).value || '');
+
+					if (isNaN(chipValue)) continue;
+
+					chipQuantities[chipValue] = +(document.getElementById(`quantity${index + 1}`).value || '');
+
+					if (isNaN(chipQuantities[chipValue])) continue;
+
+					totalChipValue += chipValue * chipQuantities[ chipValue ];
+				}
+
+				if (!Object.keys(chipQuantities).length) {
+					alert('invalid input');
+					return;
+				}
+
+				result = `<div>Total value of chips is: ${totalChipValue}</div>`;
+
+				const playerCashIn = {};
+				let totalCashInValue = 0;
+
+				for (let index = 0; index < playerCount; index++) {
+					const playerName = document.getElementById(`name${index + 1}`).value;
+
+					if (!playerName) continue;
+
+					playerCashIn[playerName] = +(document.getElementById(`cashIn${index + 1}`).value || '');
+
+					if (isNaN(playerCashIn[playerName])) continue;
+
+					totalCashInValue += playerCashIn[playerName];
+				}
+
+				if (!Object.keys(playerCashIn).length) {
+					alert('invalid input');
+					return;
+				}
+
+				result += `<div>Total value of cash in is: ${totalCashInValue}</div></br>-----------------------------</br>`;
+
+				const chipValueSequence = Object.keys(chipQuantities);
+				const players = Object.keys(playerCashIn);
+				const playersChip = {};
+				const addChip = (player, chipValue, noChip) => {
+					chipQuantities[chipValue] -= noChip;
+
+					if (playersChip[player]) {
+						if (playersChip[player][chipValue]) playersChip[player][chipValue] += noChip;
+						else playersChip[player][chipValue] = noChip;
+
+						playersChip[player].total += chipValue * noChip;
+					} else {
+						playersChip[player] = { [chipValue]: noChip, total: chipValue * noChip };
+					}
+
+					playerCashIn[player] -= chipValue * noChip;
+				};
+
+				for (let index = 0; index < chipValueSequence.length; index++) {
+					let _players = players.filter( (player) => playerCashIn[player] >= +chipValueSequence[index] );
+
+					if (!_players.length) continue;
+
+					let minCashIn = Infinity;
+
+					do {
+						_players = _players.sort( (a, b) => playerCashIn[b] - playerCashIn[a] );
+
+						if (chipQuantities[chipValueSequence[index]] < _players.length) {
+							for (let _index = 0; _index < _players.length; _index++) {
+								if (!chipQuantities[chipValueSequence[index]]) break;
+
+								addChip(_players[_index], +chipValueSequence[index], 1);
+							}
+
+							break;
+						}
+
+						for (let _index = 0; _index < _players.length; _index++) {
+							minCashIn = Math.min(minCashIn, playerCashIn[_players[_index]]);
+						}
+
+						const noChipEachPlayer = Math.min(
+							Math.floor(minCashIn/+chipValueSequence[index]),
+							Math.floor(chipQuantities[chipValueSequence[index]]/_players.length)
+						);
+
+						for (let _index = 0; _index < _players.length; _index++) {
+							addChip(_players[_index], +chipValueSequence[index], noChipEachPlayer);
+						}
+
+						_players = players.filter( (player) => playerCashIn[player] > +chipValueSequence[index] );
+					} while (_players.length && chipQuantities[chipValueSequence[index]]);
+				}
+
+				for (let index = 0; index < players.length; index++) {
+					result += `<p><div><b>${players[index]}:</b></div>`;
+
+					for (let _index = 0; _index < Object.keys(chipQuantities).length; _index++) {
+						const chipValue = +chipValueSequence[_index];
+
+						if (!playersChip[players[index]][chipValue]) continue;
+
+						const noChip = playersChip[players[index]][chipValue];
+
+						result += `<div>chip ${chipValue}: ${noChip} (${chipValue * noChip})</div>`;
+					}
+
+					result += `<div>total buy in value: ${playersChip[players[index]].total}</div>`;
+					result += `<div>remained value: ${playerCashIn[players[index]]}</div>`;
+					result += '</p>';
+				}
+
+				const resultDiv = document.createElement('div');
+
+				resultDiv.setAttribute('style', 'margin-top: 40px;')
+				resultDiv.innerHTML = result;
+				document.body.appendChild(resultDiv);
+				return false;
+			}
+		</script>
+	</body>
+</html>
